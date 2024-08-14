@@ -78,6 +78,8 @@ class CardTool(object):
                              }
         self.charge_ax = "charge"
         self.procGroups = {}
+        self.binByBinStatScale = 1.
+        self.exponentialTransform = False
 
     def getProcNames(self, grouped_procs):
         expanded_procs = []
@@ -132,7 +134,7 @@ class CardTool(object):
 
     def setAbsolutePathShapeInCard(self, setRelative=False):
         self.absolutePathShapeFileInCard = False if setRelative else True
-        
+
     def getProcsNoStatUnc(self):
         return self.noStatUncProcesses
         
@@ -240,6 +242,12 @@ class CardTool(object):
         self.nominalName = histName
         if self.datagroups:
             self.datagroups.setNominalName(histName)
+
+    def setBinByBinStatScale(self, scale):
+        self.binByBinStatScale = scale
+
+    def setExponentialTransform(self, transform = True):
+        self.exponentialTransform = transform
 
     # by default this returns True also for Fake since it has Data in the list of members
     # then self.isMC negates this one and thus will only include pure MC processes
@@ -819,16 +827,72 @@ class CardTool(object):
                 hdatas.append(self.loadPseudodataFakes(datagroups, forceNonzero=forceNonzero))
                 continue
 
-            if pseudoData in ["simple", "extended1D", "extended2D"]:
-                # pseudodata for fakes using data with different fake estimation, change the selection but still keep the nominal histogram
-                datagroups.set_histselectors(datagroups.getNames(), self.nominalName, 
-                    mode=pseudoData,
-                    simultaneousABCD=self.simultaneousABCD,
+            if pseudoData in ["dataClosure", "mcClosure"]:
+                # build the pseudodata from the nominal model
+                hdata = hh.sumHists([self.datagroups.getDatagroups()[x].hists[self.nominalName] for x in self.datagroups.groups.keys() if x != self.getDataName()])
+                hdatas.append(hdata)
+
+                # build the model by adding the nonclosure
+                # first load the nonclosure
+                if pseudoData == "dataClosure":
+                    datagroups.loadHistsForDatagroups(
+                        baseName=self.nominalName, syst=self.nominalName, label=pseudoData,
+                        procsToRead=[self.getFakeName()],
+                        scaleToNewLumi=self.lumiScale,
+                        lumiScaleVarianceLinearly=self.lumiScaleVarianceLinearly,
+                        forceNonzero=forceNonzero,
+                        sumFakesPartial=not self.simultaneousABCD,
+                        applySelection=False)
+                    hist_fake= datagroups.getDatagroups()[self.getFakeName()].hists[pseudoData]
+                elif pseudoData == "mcClosure":
+                    hist_fake = datagroups.results["QCDmuEnrichPt15PostVFP"]["output"]["unweighted"].get()
+                    
+                fakeselector = sel.FakeSelector1DExtendedABCD(
+                    hist_fake, 
+                    fakerate_axes=self.datagroups.fakerate_axes,
+                    smoothing_mode="full",
+                    smoothing_order_fakerate=3,
+                    integrate_x=True,
                 )
+
+                _0, _1, params, cov, _chi2, _ndf = fakeselector.calculate_fullABCD_smoothed(hist_fake, auxiliary_info=True)
+                hist_fake = hh.scaleHist(hist_fake, 1./0.85)
+                _0, _1, params_d, cov_d, _chi2_d, _ndf_d = fakeselector.calculate_fullABCD_smoothed(hist_fake, auxiliary_info=True, signal_region=True)
+
+                cov = cov + cov_d
+                params = params_d - params
+
+                self.datagroups.getDatagroups()[self.getFakeName()].histselector.external_params = params
+                self.datagroups.getDatagroups()[self.getFakeName()].histselector.external_cov = cov
+
+                self.datagroups.loadHistsForDatagroups(
+                    baseName=self.nominalName, syst=self.nominalName,
+                    procsToRead=[self.getFakeName()], 
+                    scaleToNewLumi=self.lumiScale,
+                    lumiScaleVarianceLinearly=self.lumiScaleVarianceLinearly,
+                    forceNonzero=forceNonzero,
+                    sumFakesPartial=not self.simultaneousABCD)
+                continue
+
+            elif pseudoData.split("-")[0] in ["simple", "extended1D", "extended2D"]:
+                # pseudodata for fakes using data with different fake estimation, change the selection but still keep the nominal histogram
+                parts = pseudoData.split("-")
+                if len(parts) == 2:
+                    pseudoDataMode, pseudoDataSmoothingMode = parts
+                else:
+                    pseudoDataMode = pseudoData
+                    pseudoDataSmoothingMode = "full"
+
+                datagroups.set_histselectors(
+                    datagroups.getNames(), self.nominalName, mode=pseudoDataMode,
+                    smoothing_mode=pseudoDataSmoothingMode, smoothingOrderFakerate=3,
+                    integrate_x=True,
+                    mcCorr=[None],
+                    )
                 syst=self.nominalName
             else:
                 syst=pseudoData
- 
+
             datagroups.loadHistsForDatagroups(
                 baseName=self.nominalName, syst=syst, label=pseudoData,
                 procsToRead=processes,
@@ -838,6 +902,12 @@ class CardTool(object):
                 sumFakesPartial=not self.simultaneousABCD)
             procDict = datagroups.getDatagroups()
             hists = [procDict[proc].hists[pseudoData] for proc in processes if proc not in processesFromNomi]
+
+            if pseudoData.split("-")[0] in ["simple", "extended1D", "extended2D"]:
+                # add BBB stat on top of nominal
+                hist_fake = self.datagroups.getDatagroups()[self.getFakeName()].hists[self.nominalName]
+                hist_fake.variances(flow=True)[...] = datagroups.getDatagroups()[self.getFakeName()].hists[pseudoData].variances(flow=True)
+                self.datagroups.getDatagroups()[self.getFakeName()].hists[self.nominalName] = hist_fake
 
             # now add possible processes from nominal
             logger.warning(f"Making pseudodata summing these processes: {processes}")
@@ -1044,12 +1114,13 @@ class CardTool(object):
         nondata_chan = {chan: nondata.copy() for chan in self.channels}
         for chan in self.excludeProcessForChannel.keys():
             nondata_chan[chan] = list(filter(lambda x: not self.excludeProcessForChannel[chan].match(x), nondata))
-        # exit this function when a syst is applied to no process (can happen when some are excluded)
+        # skip any syst that would be applied to no process (can happen when some are excluded)
         for name,info in self.lnNSystematics.items():
             if self.isExcludedNuisance(name): continue
             if all(x not in info["processes"] for x in nondata):
-                raise ValueError (f"Trying to add lnN uncertainty for {info['processes']}, which is not a valid process; see predicted processes: {nondata}")
-            
+                logger.warning(f"Trying to add lnN uncertainty {name} for {info['processes']}, which are not valid processes; see predicted processes: {nondata}.. It will be skipped")
+                continue
+
             group = info["group"]
             groupFilter = info["groupFilter"]
             for chan in self.channels:
@@ -1159,12 +1230,20 @@ class CardTool(object):
     def writeHistByCharge(self, h, name):
         for charge in self.channels:
             q = self.chargeIdDict[charge]["val"]
-            hout = narf.hist_to_root(self.getBoostHistByCharge(h, q))
+            hin = self.getBoostHistByCharge(h, q)
+            if self.binByBinStatScale != 1. and hin.storage_type == hist.storage.Weight:
+                hin = hin.copy()
+                hin.variances()[...] *= self.binByBinStatScale**2
+            hout = narf.hist_to_root(hin)
             hout.SetName(name.replace("CHANNEL",charge)+f"_{charge}")
             hout.Write()
         
     def writeHistWithCharges(self, h, name):
-        hout = narf.hist_to_root(h)
+        hin  = h
+        if self.binByBinStatScale != 1. and hin.storage_type == hist.storage.Weight:
+            hin = hin.copy()
+            hin.variances()[...] *= self.binByBinStatScale**2
+        hout = narf.hist_to_root(hin)
         hout.SetName(f"{name}_{self.channels[0]}" if self.channels else name)
         hout.Write()
     
