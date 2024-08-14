@@ -893,7 +893,8 @@ def setup(args, inputFile, inputBaseName, inputLumiScale, fitvar, genvar=None, x
                             systNameReplace=[("effSystTnP", "effSyst"), ("etaDecorr0", "fullyCorr")],
                             scale=scale,
                         )
-            if (wmass and not input_tools.args_from_metadata(cardTool, "noVetoSF")) or wlike_vetoValidation:
+            # if (wmass and not input_tools.args_from_metadata(cardTool, "noVetoSF")) or wlike_vetoValidation:
+            if False:
                 useGlobalOrTrackerVeto = input_tools.args_from_metadata(cardTool, "useGlobalOrTrackerVeto")
                 useRefinedVeto = input_tools.args_from_metadata(cardTool, "useRefinedVeto")
                 allEffTnP_veto = ["effStatTnP_veto_sf", "effSystTnP_veto"]
