@@ -116,29 +116,29 @@ class TheoryHelper(object):
         self.resumUnc = resumUnc
         
     def add_resum_unc(self, scale=1):
-        if not self.resumUnc:
-            logger.warning("No resummation uncertainty will be applied!")
-            return
+        # if not self.resumUnc:
+        #     logger.warning("No resummation uncertainty will be applied!")
+        #     return
 
-        if self.resumUnc.startswith("tnp"):
-            self.add_resum_tnp_unc(scale)
+        # if self.resumUnc.startswith("tnp"):
+        #     self.add_resum_tnp_unc(scale)
 
-            fo_scale = self.resumUnc == "tnp"
-            self.add_transition_fo_scale_uncertainties(transition = self.transitionUnc, scale = fo_scale)
+        #     fo_scale = self.resumUnc == "tnp"
+        #     self.add_transition_fo_scale_uncertainties(transition = self.transitionUnc, scale = fo_scale)
 
-            if self.resumUnc == "tnp_minnlo":
-                for sample_group in self.samples:
-                    if self.card_tool.procGroups.get(sample_group, None):
-                        # add sigma -1 uncertainty from minnlo for pt>27 GeV
-                        self.add_minnlo_scale_uncertainty(sample_group, extra_name = "highpt", rebin_pt=common.ptV_binning[::2], helicities_to_exclude=range(0, 8), pt_min=27.)
-        elif self.resumUnc == "scale":
-            # two sets of nuisances, one binned in ~10% quantiles, and one inclusive in pt
-            # to avoid underestimating the correlated part of the uncertainty
-            self.add_scetlib_dyturbo_scale_uncertainty(extra_name = "fine", rebin_pt=common.ptV_binning[::2], transition = self.transitionUnc)
-            self.add_scetlib_dyturbo_scale_uncertainty(extra_name = "inclusive", rebin_pt=[common.ptV_binning[0], common.ptV_binning[-1]], transition = self.transitionUnc)
+        #     if self.resumUnc == "tnp_minnlo":
+        #         for sample_group in self.samples:
+        #             if self.card_tool.procGroups.get(sample_group, None):
+        #                 # add sigma -1 uncertainty from minnlo for pt>27 GeV
+        #                 self.add_minnlo_scale_uncertainty(sample_group, extra_name = "highpt", rebin_pt=common.ptV_binning[::2], helicities_to_exclude=range(0, 8), pt_min=27.)
+        # elif self.resumUnc == "scale":
+        #     # two sets of nuisances, one binned in ~10% quantiles, and one inclusive in pt
+        #     # to avoid underestimating the correlated part of the uncertainty
+        #     self.add_scetlib_dyturbo_scale_uncertainty(extra_name = "fine", rebin_pt=common.ptV_binning[::2], transition = self.transitionUnc)
+        #     self.add_scetlib_dyturbo_scale_uncertainty(extra_name = "inclusive", rebin_pt=[common.ptV_binning[0], common.ptV_binning[-1]], transition = self.transitionUnc)
 
-
-        if self.minnlo_unc and self.minnlo_unc not in ["none", None]:
+        if True:
+        # if self.minnlo_unc and self.minnlo_unc not in ["none", None]:
             # sigma_-1 uncertainty is covered by scetlib-dyturbo uncertainties if they are used
             helicities_to_exclude = None if self.resumUnc == "minnlo" else [-1]
             for sample_group in self.samples:
@@ -157,7 +157,7 @@ class TheoryHelper(object):
 
                         self.add_minnlo_scale_uncertainty(sample_group, extra_name = "fine", rebin_pt=fine_pt_binning, helicities_to_exclude=helicities_to_exclude)
 
-                    self.add_minnlo_scale_uncertainty(sample_group, extra_name = "inclusive", rebin_pt=[common.ptV_binning[0], common.ptV_binning[-1]], helicities_to_exclude=helicities_to_exclude, scale = scale_inclusive)
+                    self.add_minnlo_scale_uncertainty(sample_group, extra_name = "inclusive", rebin_pt=[0,60.], helicities_to_exclude=helicities_to_exclude, scale = scale_inclusive)
 
             # additional uncertainty for effect of shower and intrinsic kt on angular coeffs
             self.add_helicity_shower_kt_uncertainty()
@@ -178,7 +178,7 @@ class TheoryHelper(object):
         # assuming the name is unchanged
         obs = self.card_tool.fit_axes
         pt_ax = "ptVgen" if "ptVgen" not in obs else "ptVgenAlt"
-
+        print(pt_ax)
         syst_axes = [pt_ax, "vars"]
         syst_ax_labels = ["PtV", "var"]
         format_with_values = ["edges", "center"]
@@ -196,9 +196,9 @@ class TheoryHelper(object):
         skip_entries.append({"vars" : "pythia_shower_kt"})
 
         if helicities_to_exclude:
-            for helicity in helicities_to_exclude:
-                skip_entries.append({"vars" : f"helicity_{helicity}_Down"})
-                skip_entries.append({"vars" : f"helicity_{helicity}_Up"})
+            for hel in helicities_to_exclude:
+                skip_entries.append({"vars" : f"helicity_{hel}_Down"})
+                skip_entries.append({"vars" : f"helicity_{hel}_Up"})
 
         # NOTE: The map needs to be keyed on the base procs not the group names, which is
         # admittedly a bit nasty
@@ -209,6 +209,10 @@ class TheoryHelper(object):
         preop_map = {}
         preop_args = {}
 
+        preop_map = {proc : 
+            (lambda h: hh.expand_hist_by_duplicate_axis(h, 'ptVgen', 'ptVgenAlt')) 
+            for proc in expanded_samples}
+        
         if pt_binned:
             signal_samples = self.card_tool.procGroups['signal_samples']
             binning = np.array(rebin_pt) if rebin_pt else None
@@ -230,7 +234,7 @@ class TheoryHelper(object):
             if pt_min is not None:
                 pt_idx = np.argmax(binning >= pt_min)
                 skip_entries.extend([{pt_ax : complex(0, x)} for x in binning[:pt_idx]])
-
+            
             func = syst_tools.gen_hist_to_variations if pt_ax == "ptVgenAlt" else syst_tools.hist_to_variations
             preop_map = {proc : func for proc in expanded_samples}
             preop_args["gen_axes"] = [pt_ax]
@@ -240,6 +244,7 @@ class TheoryHelper(object):
                 preop_args["gen_obs"] = ["ptVgen"]
 
         # Skip MiNNLO unc. 
+        print(self.resumUnc,pt_binned,helicity)
         if self.resumUnc and not (pt_binned or helicity):
             logger.warning("Without pT or helicity splitting, only the SCETlib uncertainty will be applied!")
         else:
@@ -248,7 +253,7 @@ class TheoryHelper(object):
             self.card_tool.addSystematic(scale_hist,
                 preOpMap=preop_map,
                 preOpArgs=preop_args,
-                symmetrize = "quadratic",
+                symmetrize = None,
                 processes=[sample_group],
                 group=group_name,
                 splitGroup={"QCDscale": ".*", "angularCoeffs" : ".*", "theory": ".*"},
