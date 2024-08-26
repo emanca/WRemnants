@@ -550,7 +550,7 @@ class TheoryHelper(object):
         scale = scale if scale != -1. else pdfInfo["inflationFactor"]
         pdf_hist = pdfName
         pdf_corr_hist = f"scetlib_dyturbo{pdf.upper().replace('AN3LO', 'an3lo')}VarsCorr" 
-        symmetrize = "quadratic"
+        symmetrize = None
 
         if self.pdf_from_corr:
             theory_unc = input_tools.args_from_metadata(self.card_tool, "theoryCorr")
