@@ -199,6 +199,22 @@ using helicity_helicity_tensor_t = Eigen::TensorFixedSize<double, Eigen::Sizes<N
 
     return original_weight * scale_tensor.reshape(reshapescale).broadcast(broadcasthelicities) * moments.broadcast(broadcastscales);
   }
+using qcdvars_tensor_t = Eigen::TensorFixedSize<double,Eigen::Sizes<20>>;
+using helicity_qcdvars_tensor_t = Eigen::TensorFixedSize<double,Eigen::Sizes<NHELICITY,20>>;
+  helicity_qcdvars_tensor_t makeHelicityMomentQCDvarsTensor(const CSVars &csvars, const qcdvars_tensor_t &scale_tensor, double original_weight = 1.0)
+  {
+
+    constexpr Eigen::Index nhelicity = NHELICITY;
+    constexpr Eigen::Index vars = 20;
+
+    constexpr std::array<Eigen::Index, 2> broadcastscales = {1, vars};
+    constexpr std::array<Eigen::Index, 2> broadcasthelicities = {nhelicity, 1};
+    constexpr std::array<Eigen::Index, 2> reshapescale = {1, vars};
+
+    Eigen::TensorFixedSize<double, Eigen::Sizes<nhelicity, 1>> moments = csAngularMoments(csvars).reshape(broadcasthelicities);
+
+    return original_weight * scale_tensor.reshape(reshapescale).broadcast(broadcasthelicities) * moments.broadcast(broadcastscales);
+  }
 
   helicity_helicity_tensor_t makeHelicityMomentHelicityTensor(const CSVars &csvars, double original_weight = 1.0)
   {

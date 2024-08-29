@@ -661,6 +661,23 @@ def add_qcdScaleByHelicityUnc_hist(results, df, helper, axes, cols, base_name="n
     tensorName = "helicityWeight_tensor"
     df = df.Define(tensorName, helper, ["massVgen", "absYVgen", "ptVgen", "chargeVgen", "csSineCosThetaPhigen", "nominal_weight"])
     add_syst_hist(results, df, name, axes, cols, tensorName, helper.tensor_axes, **kwargs)
+    
+    name_helicity = Datagroups.histName("nominal_gen_helicity", syst="qcdScaleByHelicity")
+    df = df.Define(f"{tensorName}_helicity", f"wrem::makeHelicityMomentQCDvarsTensor(csSineCosThetaPhigen, {tensorName})")
+    
+    #drop mass
+    cols = cols[1:]
+    axes = axes[1:]
+    
+    cols.append('ptVgen')
+    ptVgenAlt_axis = hist.axis.Variable(
+            axes[1].edges, #same axis as theory agnostic norms, 
+            #common.ptV_binning,
+            name = "ptVgenAlt", underflow=False,
+        )
+    axes.append(ptVgenAlt_axis)
+
+    add_syst_hist(results, df, name_helicity, axes, cols, f"{tensorName}_helicity", [axis_helicity,*helper.tensor_axes], **kwargs)
 
 
 def add_QCDbkg_jetPt_hist(results, df, axes, cols, base_name="nominal", jet_pt=30, **kwargs):

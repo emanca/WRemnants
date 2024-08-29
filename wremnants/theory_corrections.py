@@ -262,7 +262,8 @@ def make_corr_by_helicity(ref_helicity_hist, target_sigmaul, target_sigma4, coef
 
 def make_qcd_uncertainty_helper_by_helicity(is_w_like = False, filename=None):
     if filename is None:
-        filename = f"{common.data_dir}/angularCoefficients/w_z_moments.hdf5"
+        # filename = f"{common.data_dir}/angularCoefficients/w_z_moments.hdf5"
+        filename = f"{common.data_dir}/angularCoefficients/w_z_helicity_xsecs_theoryAgnosticBinning_scetlib_dyturboCorr_maxFiles_m1.hdf5"
 
     # load helicity cross sections from file
     with h5py.File(filename, "r") as h5file:
@@ -270,15 +271,14 @@ def make_qcd_uncertainty_helper_by_helicity(is_w_like = False, filename=None):
         helicity_xsecs = results["Z"] if is_w_like else results["W"]
         helicity_xsecs_lhe = results["Z_lhe"] if is_w_like else results["W_lhe"]
 
+    # # Common.ptV_binning is the approximate 5% quantiles, rounded to integers
+    # helicity_xsecs = hh.rebinHist(helicity_xsecs, "ptVgen", common.ptV_binning)
+    # helicity_xsecs_lhe = hh.rebinHist(helicity_xsecs_lhe, "ptVgen", common.ptV_binning)
 
-    # Common.ptV_binning is the approximate 5% quantiles, rounded to integers
-    helicity_xsecs = hh.rebinHist(helicity_xsecs, "ptVgen", common.ptV_binning)
-    helicity_xsecs_lhe = hh.rebinHist(helicity_xsecs_lhe, "ptVgen", common.ptV_binning)
-
-    if is_w_like:
-        axis_massVgen = helicity_xsecs.axes["massVgen"]
-        helicity_xsecs = hh.rebinHist(helicity_xsecs, "massVgen", axis_massVgen.edges[::2])
-        helicity_xsecs_lhe = hh.rebinHist(helicity_xsecs_lhe, "massVgen", axis_massVgen.edges[::2])
+    # if is_w_like:
+    #     axis_massVgen = helicity_xsecs.axes["massVgen"]
+    #     helicity_xsecs = hh.rebinHist(helicity_xsecs, "massVgen", axis_massVgen.edges[::2])
+    #     helicity_xsecs_lhe = hh.rebinHist(helicity_xsecs_lhe, "massVgen", axis_massVgen.edges[::2])
 
     helicity_xsecs_nom = helicity_xsecs[{"muRfact" : 1.j, "muFfact" : 1.j}].values()
 
@@ -316,6 +316,9 @@ def make_qcd_uncertainty_helper_by_helicity(is_w_like = False, filename=None):
     # set all helicity_xsecs equal to nominal
     corr_coeffs.values()[...] = helicity_xsecs_nom[..., None, None]
 
+    # helicity_xsecs_min_new = helicity_xsecs_nom + 2*(helicity_xsecs_min-helicity_xsecs_nom)
+    # helicity_xsecs_max_new = helicity_xsecs_nom + 2*(helicity_xsecs_max-helicity_xsecs_nom)
+    
     # set envelope variations
     for ihel in range(-1, 8):
         downvar, upvar = get_names(ihel)
