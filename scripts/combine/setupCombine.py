@@ -35,6 +35,7 @@ def make_subparsers(parser):
     if "theoryAgnostic" in subparserName:
         if subparserName == "theoryAgnosticNormVar":
             parser.add_argument("--theoryAgnosticBandSize", type=float, default=1., help="Multiplier for theory-motivated band in theory agnostic analysis with POIs as NOIs.")
+            parser.add_argument("--scalesigma3", type=float, default=1., help="Multiplier for sigma3 only")
             parser.add_argument("--helicitiesToInflate", type=int, nargs='*', default=[], help="Select which helicities you want to scale")
         elif subparserName == "theoryAgnosticPolVar":
             parser.add_argument("--noPolVarOnFake", action="store_true", help="Do not propagate POI variations to fakes")

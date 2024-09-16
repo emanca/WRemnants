@@ -87,19 +87,23 @@ class TheoryAgnosticHelper(object):
                                    #splitGroup={f"{groupName}_{coeffKey}" : f"{groupName}_{coeffKey}"}
                                    )
 
-    def apply_theoryAgnostic_normVar_uncertainty(self, scale_hists, sign, sum_axes=[], rebin_axes=[],helicities=[],scale=1.):
+    def apply_theoryAgnostic_normVar_uncertainty(self, scale_hists, sign, sum_axes=[], rebin_axes=[],helicities=[],scale=1.,scalesigma3=1.):
 
         def apply_transformations(h, scale_hist):
             sum2nom = {ax: hist.tag.Slicer()[::hist.sum] for ax in self.poi_axes}
             nom_hist = h[sum2nom]
 
-            values = scale_hist.values()
-
+            values = np.copy(scale_hist.values())
+            scaled_values = np.copy(values)
+            
+            scaled_values[:-1,:-1,3+1] = values[:-1,:-1,3+1]*scalesigma3
+            
             #rescale if necessary
             for helicity in helicities:
-                values[:-1,:-1,helicity+1] = values[:-1,:-1,helicity+1]*scale #don't rescale OOA
-            scale_hist.values()[...] = values
-
+                scaled_values[:-1,:-1,helicity+1] = values[:-1,:-1,helicity+1]*scale #don't rescale OOA
+            
+            scale_hist.values()[...] = scaled_values
+            
             scaled_hist = hh.multiplyHists(h, scale_hist, flow=True)
             scaled_hist=scaled_hist[{ax: hist.tag.Slicer()[::hist.sum] for ax in sum_axes}]
             
@@ -109,7 +113,8 @@ class TheoryAgnosticHelper(object):
                 # scaled_hist = hh.scaleHist(scaled_hist, 1./len(scaled_hist.axes[rebin_axis].edges))
                 
             summed_hist = hh.addHists(nom_hist, scaled_hist)
-
+            scale_hist.values()[...] = values
+            
             return summed_hist
 
         def slice_histogram(h):
@@ -172,7 +177,7 @@ class TheoryAgnosticHelper(object):
                                 splitGroup={f"{nuisanceBaseName}_Helicity{ihel}" : f".*{nuisanceBaseName}{sign}.*Helicity{ihel}" for ihel in [-1, 0, 1, 2, 3, 4]},
                                 # splitGroup={f"{nuisanceBaseName}{sign}" : f".*{nuisanceBaseName}{sign}"},
                                 preOpMap=
-                                    self.apply_theoryAgnostic_normVar_uncertainty(scale_hists,sign,helicities=self.args.helicitiesToInflate, scale=self.args.theoryAgnosticBandSize),
+                                    self.apply_theoryAgnostic_normVar_uncertainty(scale_hists,sign,helicities=self.args.helicitiesToInflate, scale=self.args.theoryAgnosticBandSize, scalesigma3=self.args.scalesigma3),
                                 ),
             if sign == "": #only for Z
                 self.card_tool.addSystematic("yieldsTheoryAgnostic",
@@ -215,7 +220,7 @@ class TheoryAgnosticHelper(object):
                                 splitGroup={f"{nuisanceBaseName}_Helicity{ihel}" : f".*{nuisanceBaseName}.*Helicity{ihel}" for ihel in [-1, 0, 1, 2, 3, 4]},
                                 # splitGroup={f"{nuisanceBaseName}CorrAllQ" : f".*{nuisanceBaseName}CorrAllQ"},
                                 preOpMap=
-                                        self.apply_theoryAgnostic_normVar_uncertainty(scale_hists,sign=None,helicities=self.args.helicitiesToInflate, scale=self.args.theoryAgnosticBandSize, rebin_axes=["ptVgenSig","absYVgenSig"],sum_axes=["helicitySig"]),
+                                        self.apply_theoryAgnostic_normVar_uncertainty(scale_hists,sign=None,rebin_axes=["ptVgenSig","absYVgenSig"],sum_axes=["helicitySig"]),
                                     ),
 
 
