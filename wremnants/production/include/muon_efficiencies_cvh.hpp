@@ -26,8 +26,9 @@
 // Both affected regions are localized rectangles in (eta, phi'), measured
 // directly from the single-muon CVH refit efficiency in Z->mumu events with
 //   mz_dilepton.py --cvhEfficiencyHists,
-// and written out by scripts/analysisTools/make_cvh_efficiency_sf.py.
-// Everywhere outside them the data/MC agreement is at the 1e-5 level.
+// and written out by
+// scripts/analysisTools/w_mass_13TeV/make_cvh_efficiency_sf.py. Everywhere
+// outside them the data/MC agreement is at the 1e-5 level.
 //
 // phi' is the azimuth at the module rather than at the vertex: a muon of
 // charge q and transverse momentum pt is bent by q*C/pt on its way out to the

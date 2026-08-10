@@ -24,7 +24,7 @@ bounding rectangles are written out as well, for the cross-check that drops the
 affected phase space geometrically instead ('--cvhBadModules veto').
 
 Usage:
-    python scripts/analysisTools/make_cvh_efficiency_sf.py -i <cvhEfficiency.hdf5>
+    python scripts/analysisTools/w_mass_13TeV/make_cvh_efficiency_sf.py -i <cvhEfficiency.hdf5>
 """
 
 import argparse
@@ -38,9 +38,11 @@ from wums import ioutils, logging
 
 logger = logging.child_logger(__name__)
 
+# this file sits in scripts/analysisTools/w_mass_13TeV/, so the repo root is
+# four levels up
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), *[os.pardir] * 3))
 HEADER = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "wremnants/production/include/muon_efficiencies_cvh.hpp",
+    REPO_ROOT, "wremnants/production/include/muon_efficiencies_cvh.hpp"
 )
 
 # C = 0.3*B*r/2 [rad*GeV] with B = 3.8 T, so C = 0.57 * r[m]

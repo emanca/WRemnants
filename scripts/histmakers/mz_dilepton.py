@@ -962,20 +962,19 @@ def build_graph(df, dataset):
                 # alternative to the geometric veto applied above: downweight MC
                 # in the affected (eta,phi') cells by the measured data/MC
                 # efficiency ratio. See muon_efficiencies_cvh.hpp; charge/pt undo
-                # the track bending, phi is read inline from the mask as this
-                # histmaker does not define *_phi0 columns.
+                # the track bending.
                 df, _ = muon_efficiencies_cvh.define_cvh_weight(
                     df,
                     [
                         (
                             "trigMuons_eta0",
-                            "Muon_correctedPhi[trigMuons][0]",
+                            "trigMuons_phi0",
                             "trigMuons_charge0",
                             "trigMuons_pt0",
                         ),
                         (
                             "nonTrigMuons_eta0",
-                            "Muon_correctedPhi[nonTrigMuons][0]",
+                            "nonTrigMuons_phi0",
                             "nonTrigMuons_charge0",
                             "nonTrigMuons_pt0",
                         ),
