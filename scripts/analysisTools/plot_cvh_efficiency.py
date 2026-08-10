@@ -36,7 +36,7 @@ HOTSPOTS = {
     "hotspot2": dict(
         eta=(-1.95, -1.40),
         phi=(4.95, 5.50),
-        label=r"second hole, uncorrected",
+        label=r"TID-2 out-of-plane module (detId 402666798)",
     ),
 }
 
@@ -208,11 +208,14 @@ def plot_applied_map(outdir, args, hd, hm, name):
     goes into muon_efficiencies_cvh.hpp. Built with the generator's own logic
     (module-phi folding + significance clamp) so it cannot drift from the header.
     """
-    regions = cvhgen.build_regions(hd, hm, args.nSigma)
+    # each region is folded with the bending to its own module radius, as the
+    # header does; pass the configured constants rather than refitting them here
+    bendCs = {name: cfg["bendC"] for name, cfg in cvhgen.SEARCH_BOXES.items()}
+    regions = cvhgen.build_regions(hd, hm, args.nSigma, bendCs)
     eta_e, phi_e = hd.axes["eta"].edges, hd.axes["phi"].edges
     sf = np.ones((len(hd.axes["eta"]), len(hd.axes["phi"])))
-    for _, i0, i1, j0, j1, block, _, _ in regions:
-        sf[i0 : i1 + 1, j0 : j1 + 1] = block
+    for r in regions:
+        sf[r.i0 : r.i1 + 1, r.j0 : r.j1 + 1] = r.sf
 
     fig, ax = plt.subplots(figsize=(10, 6))
     mesh = ax.pcolormesh(
@@ -238,7 +241,9 @@ def plot_applied_map(outdir, args, hd, hm, name):
     plt.close(fig)
 
     # zoomed panels, one per region, with the SF value printed in each cell
-    for k, (rname, i0, i1, j0, j1, block, ee, pe) in enumerate(regions):
+    for k, r in enumerate(regions):
+        rname, i0, j0, block, ee, pe = r.name, r.i0, r.j0, r.sf, r.eta_e, r.phi_e
+        i1, j1 = r.i1, r.j1
         fig, ax = plt.subplots(figsize=(1.6 + 1.1 * block.shape[0], 6))
         mesh = ax.pcolormesh(
             ee[i0 : i1 + 2],

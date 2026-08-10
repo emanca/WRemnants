@@ -162,6 +162,14 @@ if args.cvhEfficiencyHists and args.requirePixelHits:
     # Muon_cvhNValidPixelHits is 0 when the refit failed, same bias as above
     raise ValueError("'--cvhEfficiencyHists' is incompatible with '--requirePixelHits'")
 
+if args.cvhEfficiencyHists and args.cvhBadModules == "veto":
+    # the veto removes exactly the regions this histogram is meant to measure
+    logger.warning(
+        "'--cvhEfficiencyHists' is measuring the bad modules, disabling their veto "
+        "(pass '--cvhBadModules none' explicitly to silence this)"
+    )
+    args.cvhBadModules = "none"
+
 if args.cvhEfficiencyHists and (args.pt[1] > 25.0 or args.pt[2] < 65.0):
     logger.warning(
         f"The muon pt selection ({args.pt[1]}, {args.pt[2]}) does not cover the full pt range "
@@ -685,6 +693,13 @@ def build_graph(df, dataset):
         df, cvh_helper, jpsi_helper, args, dataset, smearing_helper, bias_helper
     )
 
+    if args.cvhBadModules == "veto":
+        # CVH refit efficiency holes (badly aligned modules, incl. TIB-L2 detId
+        # 369141860): remove the affected (eta,phi') rectangles from data and MC
+        # alike, so the data-only refit inefficiency needs no correction.
+        # Disabled by the checks above when measuring that inefficiency.
+        df = muon_efficiencies_cvh.apply_bad_module_veto(df, etaCut=args.vetoRecoEta)
+
     df = muon_selections.select_veto_muons(
         df,
         nMuons=2,
@@ -943,30 +958,30 @@ def build_graph(df, dataset):
             )
             weight_expr += "*weight_fullMuonSF_withTrackingReco"
 
-            # CVH efficiency holes (badly aligned modules, incl. TIB-L2 detId
-            # 369141860): a data-only alignment effect -> downweight MC in the
-            # affected (eta,phi') cells. Measured map, see
-            # muon_efficiencies_cvh.hpp. charge/pt are passed to undo the track
-            # bending; phi read inline from the mask as this histmaker does not
-            # define *_phi0 columns.
-            df, _ = muon_efficiencies_cvh.define_cvh_weight(
-                df,
-                [
-                    (
-                        "trigMuons_eta0",
-                        "Muon_correctedPhi[trigMuons][0]",
-                        "trigMuons_charge0",
-                        "trigMuons_pt0",
-                    ),
-                    (
-                        "nonTrigMuons_eta0",
-                        "Muon_correctedPhi[nonTrigMuons][0]",
-                        "nonTrigMuons_charge0",
-                        "nonTrigMuons_pt0",
-                    ),
-                ],
-            )
-            weight_expr += "*weight_cvhSF"
+            if args.cvhBadModules == "sf":
+                # alternative to the geometric veto applied above: downweight MC
+                # in the affected (eta,phi') cells by the measured data/MC
+                # efficiency ratio. See muon_efficiencies_cvh.hpp; charge/pt undo
+                # the track bending, phi is read inline from the mask as this
+                # histmaker does not define *_phi0 columns.
+                df, _ = muon_efficiencies_cvh.define_cvh_weight(
+                    df,
+                    [
+                        (
+                            "trigMuons_eta0",
+                            "Muon_correctedPhi[trigMuons][0]",
+                            "trigMuons_charge0",
+                            "trigMuons_pt0",
+                        ),
+                        (
+                            "nonTrigMuons_eta0",
+                            "Muon_correctedPhi[nonTrigMuons][0]",
+                            "nonTrigMuons_charge0",
+                            "nonTrigMuons_pt0",
+                        ),
+                    ],
+                )
+                weight_expr += "*weight_cvhSF"
 
         # prepare inputs for pixel multiplicity helpers
         df = df.DefinePerSample(
@@ -1140,7 +1155,7 @@ def build_graph(df, dataset):
                 f"ROOT::VecOps::RVec<{t}>{{trigMuons_{v}, nonTrigMuons_{v}}}",
             )
 
-        if dataset.is_data or args.noScaleFactors:
+        if dataset.is_data or args.noScaleFactors or args.cvhBadModules != "sf":
             df = df.Alias("cvhEff_weight", "nominal_weight")
         else:
             # undo the hotspot scale factor, this histogram is meant to measure it
