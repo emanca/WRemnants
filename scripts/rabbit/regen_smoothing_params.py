@@ -8,7 +8,7 @@ rabbit fit via ``params:PATH`` in the ``--paramModel SmoothExtendedABCDIsoMT``
 CLI token.
 
 This is usually not needed: setupRabbit.py computes the same coefficients and
-stores them as auxiliary data in the fit input file (--storeSmoothingParams),
+stores them as auxiliary data in the fit input file (see --noSmoothingParams),
 where the param model picks them up by itself.  Use this script to derive the
 starting values from a different input file than the one that is fit, or to
 inspect them standalone.
