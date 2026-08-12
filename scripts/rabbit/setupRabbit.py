@@ -16,7 +16,12 @@ from wremnants.postprocessing import (
 )
 from wremnants.postprocessing.datagroups import datagroups
 from wremnants.postprocessing.datagroups.datagroups import Datagroups
-from wremnants.postprocessing.histselections import FakeSelectorSimpleABCD
+from wremnants.postprocessing.histselections import (
+    FakeSelectorSimpleABCD,
+    compute_extended_abcd_initial_params,
+    default_fake_estimation,
+    should_store_smoothing_params,
+)
 from wremnants.postprocessing.regression import Regressor
 from wremnants.postprocessing.syst_tools import (
     fake_nonclosure_byAxis,
@@ -103,46 +108,6 @@ def _normalize_negative_imaginary_bounds(argv):
             i += 1
 
     return normalized_argv
-
-
-def is_simultaneous_abcd_fit(fitvar):
-    """Whether the extended ABCD regions are part of the fit rather than collapsed here.
-
-    With mt and relIso among the fit axes the ABCD relation is solved by rabbit's
-    param model, which is what makes the 'none' fake estimation and the stored
-    initial parameters the right defaults.
-    """
-    return "mt" in fitvar and "relIso" in fitvar
-
-
-def default_fake_estimation(args):
-    """Resolve --fakeEstimation when it was not given explicitly.
-
-    For the simultaneous ABCD fit the fakes have to be filled with a flat template so
-    that rabbit solves the ABCD relation itself, so 'none' is the only choice that
-    makes sense there; everywhere else the historical 'extended1D' still applies.
-    Resolved once from all channels, since the option is global.
-    """
-    if args.fakeEstimation is not None:
-        return args.fakeEstimation
-    if all(is_simultaneous_abcd_fit(fv.split("-")) for fv in args.fitvar):
-        return "none"
-    return "extended1D"
-
-
-def should_store_smoothing_params(args, fitvar):
-    """Whether to store initial parameters for the simultaneous ABCD param model.
-
-    Stored whenever they are needed, i.e. whenever the ABCD relation is left for the
-    fit to solve: the two ABCD axes are fit axes and the fakes are filled with a flat
-    template ('none' fake estimation, which is also the default in that case).
-    --noSmoothingParams opts out.
-    """
-    return (
-        not args.noSmoothingParams
-        and args.fakeEstimation in ["none", None]
-        and is_simultaneous_abcd_fit(fitvar)
-    )
 
 
 def apply_preselection(h, specs: tuple = ()):
@@ -707,7 +672,7 @@ def make_parser(parser=None, argv=None):
         fit axes with the 'none' fake estimation, which is the default in that case), so that the
         fit can start from them without running regen_smoothing_params.py separately.
         Specific to the 1D extended ABCD nonprompt estimate of the W mass analysis, see
-        rabbit_helpers.compute_extended_abcd_initial_params.
+        histselections.compute_extended_abcd_initial_params.
         """,
     )
     parser.add_argument(
@@ -1598,7 +1563,7 @@ def setup(
                 fakeTransferCorrFileName=None,
                 histAxesRemovedBeforeFakes=[],
             )
-            smoothing_params = rabbit_helpers.compute_extended_abcd_initial_params(
+            smoothing_params = compute_extended_abcd_initial_params(
                 datagroups.groups[datagroups.fakeName].histselector,
                 datagroups,
                 inputBaseName,
