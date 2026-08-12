@@ -105,19 +105,35 @@ def _normalize_negative_imaginary_bounds(argv):
     return normalized_argv
 
 
-def store_smoothing_params(args, fitvar):
+def should_store_smoothing_params(args, fitvar):
     """Whether to store initial parameters for the simultaneous ABCD param model.
 
-    Only meaningful when the ABCD regions are part of the fit (mt and relIso are fit
-    axes) and the fakes are filled with a flat template ('none' fake estimation), i.e.
-    when the ABCD relation is solved by the rabbit param model rather than here.
+    Opt in with --storeSmoothingParams. The coefficients only mean anything when the
+    ABCD relation is solved by the rabbit param model rather than here, which needs
+    the fakes to be filled with a flat template ('none' fake estimation) and the two
+    ABCD axes to be part of the fit. Asking for them in any other configuration is a
+    mistake rather than something to skip silently, so it raises.
     """
-    return (
-        not args.noSmoothingParams
-        and args.fakeEstimation in ["none", None]
-        and "mt" in fitvar
-        and "relIso" in fitvar
-    )
+    if not args.storeSmoothingParams:
+        return False
+
+    problems = []
+    if args.fakeEstimation not in ["none", None]:
+        problems.append(
+            f"--fakeEstimation is '{args.fakeEstimation}', it has to be 'none' so the"
+            " ABCD relation is left for the fit to solve"
+        )
+    missing = [ax for ax in ("mt", "relIso") if ax not in fitvar]
+    if missing:
+        problems.append(
+            f"{missing} missing from the fit axes ({'-'.join(fitvar)}), so the ABCD"
+            " regions are not in the fit"
+        )
+    if problems:
+        raise ValueError(
+            "--storeSmoothingParams was requested but " + "; and ".join(problems) + "."
+        )
+    return True
 
 
 def apply_preselection(h, specs: tuple = ()):
@@ -668,13 +684,15 @@ def make_parser(parser=None, argv=None):
         """,
     )
     parser.add_argument(
-        "--noSmoothingParams",
+        "--storeSmoothingParams",
         action="store_true",
         help="""
-        Don't store the initial parameters for the SmoothExtendedABCDIsoMT param model of rabbit.
-        By default they are computed and stored as auxiliary data in the output file whenever the
-        fakes are estimated in the fit itself (--fakeEstimation none with mt and relIso fit axes),
-        so that the fit can start from them without running regen_smoothing_params.py separately.
+        Store the initial parameters for the SmoothExtendedABCDIsoMT param model of rabbit as
+        auxiliary data in the output file, so that the fit can start from them without running
+        regen_smoothing_params.py separately. Requires the ABCD relation to be solved in the fit
+        (--fakeEstimation none, with mt and relIso among the fit axes) and errors out otherwise.
+        Specific to the 1D extended ABCD nonprompt estimate of the W mass analysis, see
+        rabbit_helpers.compute_extended_abcd_initial_params.
         """,
     )
     parser.add_argument(
@@ -1542,7 +1560,7 @@ def setup(
                 [str(x[0].split(":")[0]) for x in args.presel] if args.presel else []
             ),
         )
-        if store_smoothing_params(args, fitvar):
+        if should_store_smoothing_params(args, fitvar):
             # The fakes are filled with a flat template ('none' histselector) and the
             # ABCD relation is solved in the fit itself. Derive the polynomial
             # coefficients of the extended ABCD regions here and ship them along with
@@ -1565,7 +1583,7 @@ def setup(
                 fakeTransferCorrFileName=None,
                 histAxesRemovedBeforeFakes=[],
             )
-            smoothing_params = rabbit_helpers.compute_smoothing_params(
+            smoothing_params = rabbit_helpers.compute_extended_abcd_initial_params(
                 datagroups.groups[datagroups.fakeName].histselector,
                 datagroups,
                 inputBaseName,

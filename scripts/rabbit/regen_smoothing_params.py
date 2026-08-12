@@ -8,7 +8,7 @@ rabbit fit via ``params:PATH`` in the ``--paramModel SmoothExtendedABCDIsoMT``
 CLI token.
 
 This is usually not needed: setupRabbit.py computes the same coefficients and
-stores them as auxiliary data in the fit input file (see --noSmoothingParams),
+stores them as auxiliary data in the fit input file (--storeSmoothingParams),
 where the param model picks them up by itself.  Use this script to derive the
 starting values from a different input file than the one that is fit, or to
 inspect them standalone.
@@ -135,11 +135,11 @@ def dump_smoothing_params(
     SmoothExtendedABCD as ``initial_params``.
 
     The coefficients are computed by
-    ``rabbit_helpers.compute_smoothing_params``, which is also used by
+    ``rabbit_helpers.compute_extended_abcd_initial_params``, which is also used by
     setupRabbit.py to store them directly in the fit input file. See there for
     the details of the layout and the region ordering.
     """
-    datasets = rabbit_helpers.compute_smoothing_params(
+    datasets = rabbit_helpers.compute_extended_abcd_initial_params(
         fakeselector, datagroups, inputBaseName
     )
 

@@ -1139,12 +1139,30 @@ def add_bsm_process(
         m.xsec = xsec
 
 
-def compute_smoothing_params(
+def compute_extended_abcd_initial_params(
     fakeselector, datagroups, inputBaseName, label="_smoothing_params"
 ):
     """
     Compute the per-region polynomial coefficients of the nominal fake histogram
     smoothing fit, in the layout expected by SmoothExtendedABCD as ``initial_params``.
+
+    This is **not** a generic smoothing utility. It is a translation between two
+    specific implementations of one specific nonprompt estimate, and it hard-codes
+    every one of them:
+
+    * the 6-region 1D extended ABCD of the W mass analysis, i.e. a ``fakeselector``
+      that is a ``FakeSelector1DExtendedABCD`` built with ``smoothing_mode="full"``
+      (it reads the private ``_params_before_reduce``) and ``integrate_x=True``;
+    * exactly 5 free regions plus the predicted one, and the flat index ordering that
+      ``calculate_fullABCD_smoothed(..., signal_region=False)`` returns with the y
+      axis flipped so that tight isolation is last, spelled out below;
+    * a single smoothing axis, and the Chebyshev basis shared by the regressor and
+      the rabbit param model;
+    * ``mc_template = 1``, i.e. the nonprompt process filled with ``OnesSelector``,
+      which is what lets the intercept carry the absolute scale.
+
+    Any other ABCD layout, region count, smoothing mode or basis needs its own
+    translation rather than an argument to this one.
 
     Both the WRemnants spectrum regressor and SmoothExtendedABCD use the same
     Chebyshev basis (T_k of the first kind, with x̃ ∈ [-1, 1] via the axis edges),
@@ -1194,7 +1212,8 @@ def compute_smoothing_params(
     fakeselector.calculate_fullABCD_smoothed(h_fakes, signal_region=False)
     if not hasattr(fakeselector, "_params_before_reduce"):
         raise RuntimeError(
-            "compute_smoothing_params: _params_before_reduce not found on fakeselector. "
+            "compute_extended_abcd_initial_params: _params_before_reduce not found on "
+            "the fakeselector. "
             "Ensure fakeSmoothingMode='full' is used."
         )
     # Shape: (*outer_dims, 5, order+1) — indices [Ax=0, Bx=1, A=2, B=3, C=4]
