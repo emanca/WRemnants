@@ -8,7 +8,7 @@ import hist
 import numpy as np
 import rabbit.io_tools
 
-from rabbit import tensorwriter
+from rabbit import auxiliary, tensorwriter
 from wremnants.postprocessing import (
     rabbit_helpers,
     rabbit_theory_helper,
@@ -16,7 +16,12 @@ from wremnants.postprocessing import (
 )
 from wremnants.postprocessing.datagroups import datagroups
 from wremnants.postprocessing.datagroups.datagroups import Datagroups
-from wremnants.postprocessing.histselections import FakeSelectorSimpleABCD
+from wremnants.postprocessing.histselections import (
+    FakeSelectorSimpleABCD,
+    compute_extended_abcd_initial_params,
+    default_fake_estimation,
+    should_store_smoothing_params,
+)
 from wremnants.postprocessing.regression import Regressor
 from wremnants.postprocessing.syst_tools import (
     fake_nonclosure_byAxis,
@@ -589,8 +594,13 @@ def make_parser(parser=None, argv=None):
     parser.add_argument(
         "--fakeEstimation",
         type=str,
-        help="Set the mode for the fake estimation",
-        default="extended1D",
+        help="""
+        Set the mode for the fake estimation. Defaults to 'none' when mt and relIso are
+        fit axes, i.e. for the simultaneous extended ABCD fit, where the ABCD relation
+        is solved by rabbit's param model and the fakes have to be a flat template
+        here; 'extended1D' otherwise.
+        """,
+        default=None,
         choices=[
             "none",
             "mc",
@@ -650,6 +660,19 @@ def make_parser(parser=None, argv=None):
         Edges for ABCD method given an axis. Syntax is --ABCDedgesByAxis 'nameX=x1,x2,x3' 'nameY=y1,y2,y3'
         Values after = are converted into float internally.
         Can specify only one axis or two (potentially more).
+        """,
+    )
+    parser.add_argument(
+        "--noSmoothingParams",
+        action="store_true",
+        help="""
+        Don't store the initial parameters for the SmoothExtendedABCDIsoMT param model of rabbit.
+        By default they are computed and stored as auxiliary data in the output file whenever the
+        fit needs them, i.e. whenever the ABCD relation is solved in the fit itself (mt and relIso
+        fit axes with the 'none' fake estimation, which is the default in that case), so that the
+        fit can start from them without running regen_smoothing_params.py separately.
+        Specific to the 1D extended ABCD nonprompt estimate of the W mass analysis, see
+        histselections.compute_extended_abcd_initial_params.
         """,
     )
     parser.add_argument(
@@ -1529,6 +1552,40 @@ def setup(
                 [str(x[0].split(":")[0]) for x in args.presel] if args.presel else []
             ),
         )
+        if should_store_smoothing_params(args, fitvar):
+            # The fakes are filled with a flat template ('none' histselector) and the
+            # ABCD relation is solved in the fit itself. Derive the polynomial
+            # coefficients of the extended ABCD regions here and ship them along with
+            # the templates, so the rabbit param model can start the fit from them.
+            # This needs the corresponding fake selector, the one for the fit is set
+            # again right after. Only for the fake group, the other groups must keep
+            # their full ABCD axes (the 'none' mode doesn't set any selector for them).
+            datagroups.set_histselectors(
+                [datagroups.fakeName],
+                inputBaseName,
+                mode="extended1D",
+                smoothing_mode="full",
+                smoothingOrderSpectrum=args.fakeSmoothingOrder,
+                smoothingPolynomialSpectrum=args.fakeSmoothingPolynomial,
+                mcCorr=None,
+                integrate_x=True,
+                forceGlobalScaleFakes=False,
+                abcdExplicitAxisEdges=abcdExplicitAxisEdges,
+                fakeTransferAxis="",
+                fakeTransferCorrFileName=None,
+                histAxesRemovedBeforeFakes=[],
+            )
+            smoothing_params = compute_extended_abcd_initial_params(
+                datagroups.groups[datagroups.fakeName].histselector,
+                datagroups,
+                inputBaseName,
+            )
+            aux_name = auxiliary.initial_params_name(
+                "SmoothExtendedABCDIsoMT", datagroups.fakeName, channel
+            )
+            logger.info(f"Store initial parameters as auxiliary data '{aux_name}'")
+            writer.add_auxiliary(aux_name, smoothing_params)
+
         datagroups.set_histselectors(
             datagroups.getNames(), inputBaseName, **histselector_kwargs
         )
@@ -3404,6 +3461,11 @@ if __name__ == "__main__":
     args = parser.parse_args(argv)
 
     logger = logging.setup_logger(__file__, args.verbose, args.noColorLogger)
+
+    # Resolve here rather than in the parser: the sensible default depends on whether
+    # the ABCD regions are fit axes, which is only known once --fitvar is parsed.
+    args.fakeEstimation = default_fake_estimation(args)
+    logger.info(f"Fake estimation mode: {args.fakeEstimation}")
 
     if "wwidth" in args.noi:
         parser = parsing.set_parser_default(parser, "widthVariationW", ["48", "36"])
