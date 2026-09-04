@@ -119,18 +119,6 @@ parser.add_argument(
     help="Random seed for jackknifing procedure",
 )
 parser.add_argument(
-    "--nonUltraRelativisticReweight",
-    action="store_true",
-    help=(
-        "Use the non-ultra-relativistic (mass-aware) energy-loss correction in the "
-        "ONNX scale reweight, evaluated with the muon mass for both muons. The e "
-        "variation then treats e as a total-energy shift (finite, asymmetric "
-        "down/up shifts with the 1/(beta*cosh(eta)) factor) instead of the "
-        "ultra-relativistic linear approximation. Only affects "
-        "--muonScaleVariation onnxReweight."
-    ),
-)
-parser.add_argument(
     "--etaBins",
     type=int,
     default=None,
@@ -531,11 +519,12 @@ resolution_diff_weights_helper = (
     smearing=not args.noSmearing,
     fit_muon_scale=args.fitMuonScaleAndResolution,
     variation_eta_bins=args.etaBins,
-    # Per-leg masses for the mass-aware energy-loss term; both legs are muons
-    # (wrem::muon_mass = 0.1056583745 GeV). None keeps the ultra-relativistic
-    # (massless) reweight. Only used for --muonScaleVariation onnxReweight.
+    # Use mass-aware propagation by default for ONNX reweighting; non-ONNX
+    # methods receive None because their helpers do not consume reweight_mass.
     reweight_mass=(
-        [0.1056583745, 0.1056583745] if args.nonUltraRelativisticReweight else None
+        [0.1056583745, 0.1056583745]
+        if args.muonScaleVariation == "onnxReweight"
+        else None
     ),
 )
 z_non_closure_parametrized_helper, z_non_closure_binned_helper = (
