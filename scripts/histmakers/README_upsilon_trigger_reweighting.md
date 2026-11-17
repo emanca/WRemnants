@@ -2,8 +2,8 @@
 
 The Upsilon calibration-input histmaker can apply trigger-motivated offline
 selections and direct, category-specific shape weights in
-`(ptll, yll, cosThetaStarll)`. The feature is opt-in; the existing default
-selection and weights are unchanged.
+`(ptll, yll, cosThetaStarll)`. For legacy inputs, the trigger selection is
+opt-in. For NanoV15, `muon_eta` is the default. V weighting is opt-in for both.
 
 ## Workflow
 
@@ -62,12 +62,26 @@ apply v9 nominal smearing or pixel-multiplicity corrections to NanoV15.
 The default category selection is `muon_eta`; the default state assignment
 is `pdg` (the nearest common Upsilon ancestor of the two matched muons).
 Use `--stateAssignment legacy` only for a generator-dimuon-mass comparison.
-The V-map input is made before the state split. For the response production,
-add `--fitMuonScaleAndResolution --etaBins 24 --scale_A 1 --scale_e 1 --scale_M 1`
-to the weighted histmaker command. It books the scale (`A`, `e`, `M`) and
-resolution (`a`, `b`, `c`) variations separately for each of the three states.
-NanoV15 output names include the input version, state assignment, and category
-selection, so use the matching filename when building the V map.
+The V-map input is made before the state split. To make the default NanoV15
+calibration input, run from the repository root after `source setup.sh`:
+
+```bash
+nano=(--resonance upsilon --era 2016PostVFP --nanoVersion v15 --nanoV15Inputs inputs.json)
+stem=dimuon_resonances_calinput_upsilon_2016PostVFP_v15_states_pdg
+
+python3 scripts/histmakers/dimuon_resonances_calinput.py \
+  "${nano[@]}" --makeUpsilonVReweightInputs -j 16 -o CALINPUT
+python3 scripts/corrections/make_upsilon_v_reweighting.py \
+  "CALINPUT/${stem}_upsilonSel_muon_eta.hdf5" CALINPUT/upsilon_v_weights.hdf5
+python3 scripts/histmakers/dimuon_resonances_calinput.py \
+  "${nano[@]}" --upsilonVReweightFile CALINPUT/upsilon_v_weights.hdf5 \
+  --fitMuonScaleAndResolution --etaBins 24 --scale_A 1 --scale_e 1 --scale_M 1 \
+  -j 16 -o CALINPUT
+```
+
+The last command books separate scale (`A`, `e`, `M`) and resolution (`a`,
+`b`, `c`) responses for each state. Use its HDF5 output for the
+[tensor and fit commands](../rabbit/README.md#nanov15-upsilon-fit).
 
 ### Optional MC slice stitching
 
@@ -87,6 +101,7 @@ and input files are unchanged. A map derived with a different set of factors
 or without stitching cannot be used on stitched MC. Stitched output is named
 with `upsilonStitched` and includes `Y_mc_unweighted` for the tensor's MC
 occupancy cut. The tensor does not apply cross sections a second time.
+Use the produced `upsilonStitched` filenames in the V-map and tensor commands.
 
 ## Selections and categories
 
