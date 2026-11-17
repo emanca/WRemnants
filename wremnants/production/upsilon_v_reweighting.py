@@ -115,7 +115,7 @@ def build_payload(data_hist, mc_hist):
     }
 
 
-def load_payload(path, selection):
+def load_payload(path, selection, *, stitching=None):
     """Load and validate a V-reweighting payload for *selection*."""
 
     with h5py.File(path, "r") as h5file:
@@ -126,16 +126,16 @@ def load_payload(path, selection):
             value = payload.get(name)
             payload[name] = value.get() if hasattr(value, "get") else value
 
-    _validate_payload(payload, selection)
+    _validate_payload(payload, selection, stitching=stitching)
     return payload
 
 
-def make_helpers(path, selection):
+def make_helpers(path, selection, *, stitching=None):
     """Return validated correction and common-support lookup helpers."""
 
     from wremnants.production import correctionsTensor_helper
 
-    payload = load_payload(path, selection)
+    payload = load_payload(path, selection, stitching=stitching)
     return (
         correctionsTensor_helper.makeCorrectionsTensor(payload["correction"]),
         correctionsTensor_helper.makeCorrectionsTensor(payload["usable"]),
@@ -257,7 +257,7 @@ def _validate_inputs(data_hist, mc_hist):
         raise ValueError("Data and simulation trigger category metadata differ")
 
 
-def _validate_payload(payload, selection):
+def _validate_payload(payload, selection, *, stitching=None):
     if not isinstance(payload, dict):
         raise ValueError("The Upsilon V-reweighting payload is not a dictionary")
     if payload.get("version") != PAYLOAD_VERSION:
@@ -304,6 +304,8 @@ def _validate_payload(payload, selection):
         or not np.array_equal(category.edges, np.arange(len(expected_labels) + 1))
     ):
         raise ValueError("The triggerCategory axis is inconsistent with the selection")
+    if metadata.get("stitching") != stitching:
+        raise ValueError("The V map was derived with a different MC stitching configuration")
     expected_edges = {
         "ptll": PT_EDGES,
         "yll": RAPIDITY_EDGES,

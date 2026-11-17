@@ -69,6 +69,25 @@ resolution (`a`, `b`, `c`) variations separately for each of the three states.
 NanoV15 output names include the input version, state assignment, and category
 selection, so use the matching filename when building the V map.
 
+### Optional MC slice stitching
+
+The default uses unit MC event weights before V weighting. To stitch the
+three generator slices by cross section, pass
+`--upsilonStitchingFile normalizations.json` both when making the V-map input and when applying the
+map in the response production. The JSON has one entry for each of `pt0to8`,
+`pt8to13`, and `pt13toInf`, with numeric `effective_xsec_pb` and
+`generated_sumw` fields. Supply the effective cross section after the
+generator filter and the generated sum of weights for that same production,
+before any reconstruction or analysis selection. Do not use the sum of
+selected weights or apply the generator filter efficiency twice.
+
+The histmaker multiplies MC `genWeight` by `effective_xsec_pb / generated_sumw`
+for each slice before deriving or applying the V weights. Data, selections,
+and input files are unchanged. A map derived with a different set of factors
+or without stitching cannot be used on stitched MC. Stitched output is named
+with `upsilonStitched` and includes `Y_mc_unweighted` for the tensor's MC
+occupancy cut. The tensor does not apply cross sections a second time.
+
 ## Selections and categories
 
 `inclusive_or` retains one category requiring the Dimuon8-barrel or Dimuon13

@@ -135,19 +135,22 @@ def define_columns(df, columns, selection):
     )
 
 
-def category_axis(selection):
+def category_axis(selection, *, stitching=None):
     labels = category_labels(selection)
+    metadata = {"selection": selection, "labels": labels}
+    if stitching is not None:
+        metadata["stitching"] = stitching
     return hist.axis.Integer(
         0, len(labels), name="triggerCategory", underflow=False, overflow=False,
-        metadata={"selection": selection, "labels": labels},
+        metadata=metadata,
     )
 
 
-def book_v_reweight_input(df, selection, weight_column="weight"):
+def book_v_reweight_input(df, selection, weight_column="weight", *, stitching=None):
     """Book fine-binned inputs from which category-specific maps are derived."""
 
     axes = [
-        category_axis(selection),
+        category_axis(selection, stitching=stitching),
         hist.axis.Variable(
             np.round(np.arange(DIMUON_PT_MIN, 100.0001, 0.5), 8),
             name="ptll",
