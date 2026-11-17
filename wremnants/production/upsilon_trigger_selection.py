@@ -7,7 +7,10 @@ weight construction so the same definitions can be reused in both steps.
 """
 
 import hist
+import narf
 import numpy as np
+
+narf.clingutils.Declare('#include "csVariables.hpp"')
 
 SELECTIONS = (
     "inclusive_or",
@@ -20,10 +23,10 @@ MUON_ETA_MAX = 2.4
 MASS_MIN = 8.8
 MASS_MAX = 10.8
 
-DIMUON_PT_MIN = 8.5
-HIGH_DIMUON_PT_MIN = 13.5
-HIGH_LEADING_PT_MIN = 13.5
-HIGH_SUBLEADING_PT_MIN = 6.5
+DIMUON_PT_MIN = 8.0
+HIGH_DIMUON_PT_MIN = 13.0
+HIGH_LEADING_PT_MIN = 13.0
+HIGH_SUBLEADING_PT_MIN = 6.0
 
 BARREL_MUON_ETA_MAX = 1.4
 BARREL_DIMUON_RAPIDITY_MAX = 1.25
@@ -132,19 +135,19 @@ def define_columns(df, columns, selection):
     )
 
 
+def category_axis(selection):
+    labels = category_labels(selection)
+    return hist.axis.Integer(
+        0, len(labels), name="triggerCategory", underflow=False, overflow=False,
+        metadata={"selection": selection, "labels": labels},
+    )
+
+
 def book_v_reweight_input(df, selection, weight_column="weight"):
     """Book fine-binned inputs from which category-specific maps are derived."""
 
-    labels = category_labels(selection)
     axes = [
-        hist.axis.Integer(
-            0,
-            len(labels),
-            name="triggerCategory",
-            underflow=False,
-            overflow=False,
-            metadata={"selection": selection, "labels": labels},
-        ),
+        category_axis(selection),
         hist.axis.Variable(
             np.round(np.arange(DIMUON_PT_MIN, 100.0001, 0.5), 8),
             name="ptll",

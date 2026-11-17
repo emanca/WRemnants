@@ -9,7 +9,7 @@ from wremnants.production import upsilon_trigger_selection
 
 PT_EDGES = np.concatenate(
     (
-        np.arange(8.5, 20.0, 0.5),
+        np.arange(upsilon_trigger_selection.DIMUON_PT_MIN, 20.0, 0.5),
         np.arange(20.0, 40.0, 1.0),
         np.arange(40.0, 60.0, 2.0),
         np.arange(60.0, 100.1, 5.0),
@@ -253,6 +253,8 @@ def _validate_inputs(data_hist, mc_hist):
     metadata = data_hist.axes["triggerCategory"].metadata
     if not isinstance(metadata, dict) or not {"selection", "labels"} <= metadata.keys():
         raise ValueError("The triggerCategory axis lacks selection metadata")
+    if metadata != mc_hist.axes["triggerCategory"].metadata:
+        raise ValueError("Data and simulation trigger category metadata differ")
 
 
 def _validate_payload(payload, selection):
